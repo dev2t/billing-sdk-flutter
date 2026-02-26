@@ -23,17 +23,38 @@ Flutter SDK for **billing token verification**, **in-memory state for add-on che
 ```dart
 import 'package:billing_flutter_sdk/billing_flutter_sdk.dart';
 
+// Configure once (e.g. at app startup)
+BillingSdk.configure(
+  billingApiBaseUrl: 'https://billing.example.com',
+  publicKeyPem: '...', // optional; omit to use SDK default (set for production)
+);
+
 // 1) Init on app start (saved token from app storage)
 BillingSdk.init(savedSignedJson);
-BillingSdk.getPayload();  // use for add-on checks
+final payload = BillingSdk.getPayload();  // use for add-on checks
 
 // 2) Sync from server (e.g. when user taps Sync button)
-await BillingSdk.syncFromServer(uniqueId: userOidOrSsoIdOrEmail);
+final syncResult = await BillingSdk.syncFromServer(uniqueId: userOidOrSsoIdOrEmail);
+if (syncResult is SyncFailure) {
+  // Show syncResult.message in error notification
+}
 
 // 3) Paste + verify (when user pastes token)
 final result = BillingSdk.verifyAndDecode(pastedJson);
-// Success: save token/payload in app. Failure: show result.error.message in notification.
+switch (result) {
+  case VerifySuccess(:final payload):
+    // Persist pasted token; use payload
+  case VerifyFailure(:final error):
+    // Show error.message in error notification
+}
 ```
+
+---
+
+## Configuration
+
+- **Persistence**: The SDK does not persist; the app saves/loads the raw token and passes it to `init` on launch.
+- **Errors**: The SDK exposes user-facing messages (`BillingTokenError.message`, `SyncFailure.message`); the app is responsible for showing them (e.g. snackbar, dialog).
 
 ---
 
