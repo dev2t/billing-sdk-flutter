@@ -11,5 +11,6 @@ library;
 export 'package:billing_flutter_sdk/src/api/billing_api_client.dart'
     show SyncResult, SyncSuccess, SyncFailure;
 export 'package:billing_flutter_sdk/src/billing_sdk.dart';
+export 'package:billing_flutter_sdk/src/models/billing_subscription.dart';
 export 'package:billing_flutter_sdk/src/models/billing_token_error.dart';
 export 'package:billing_flutter_sdk/src/models/billing_token_payload.dart';

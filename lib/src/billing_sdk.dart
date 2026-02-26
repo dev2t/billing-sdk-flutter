@@ -23,10 +23,7 @@ class BillingSdk {
   /// [billingApiBaseUrl] – base URL for sync (e.g. `https://billing.example.com`).
   /// [publicKeyPem] – PEM string to verify JWTs; if null, uses embedded default
   /// (replace with key from Billing API in production).
-  static void configure({
-    String? billingApiBaseUrl,
-    String? publicKeyPem,
-  }) {
+  static void configure({String? billingApiBaseUrl, String? publicKeyPem}) {
     if (billingApiBaseUrl != null) _billingApiBaseUrl = billingApiBaseUrl;
     if (publicKeyPem != null) _publicKeyPem = publicKeyPem;
     _verifier = null;
@@ -44,15 +41,19 @@ class BillingSdk {
 
   static TokenVerifier get _verifierOrThrow {
     final pem = _publicKeyPem ?? defaultPublicKeyPem;
+
     return _verifier ??= TokenVerifier(publicKeyPem: pem);
   }
 
   static BillingApiClient get _apiClientOrThrow {
     final base = _billingApiBaseUrl;
+
     if (base == null || base.isEmpty) {
       throw StateError(
-          'BillingSdk: call configure(billingApiBaseUrl: ...) before syncFromServer.');
+        'BillingSdk: call configure(billingApiBaseUrl: ...) before syncFromServer.',
+      );
     }
+
     return _apiClient ??= BillingApiClient(baseUrl: base);
   }
 
@@ -63,7 +64,9 @@ class BillingSdk {
       _currentPayload = null;
       return;
     }
+
     final result = _verifierOrThrow.verifyAndDecode(savedSignedJson.trim());
+
     switch (result) {
       case VerifySuccess(:final payload):
         _currentPayload = payload;
@@ -84,6 +87,7 @@ class BillingSdk {
   }) async {
     String? emailParam = email;
     String? ssoIdParam = ssoId;
+
     if (uniqueId != null && uniqueId.isNotEmpty) {
       if (uniqueId.contains('@')) {
         emailParam = uniqueId;
@@ -91,6 +95,7 @@ class BillingSdk {
         ssoIdParam = uniqueId;
       }
     }
+
     if ((emailParam == null || emailParam.isEmpty) &&
         (ssoIdParam == null || ssoIdParam.isEmpty)) {
       return const SyncFailure(message: 'Missing user identifier.');
@@ -105,6 +110,7 @@ class BillingSdk {
     switch (result) {
       case SyncSuccess(:final signedToken):
         final verifyResult = _verifierOrThrow.verifyAndDecode(signedToken);
+
         switch (verifyResult) {
           case VerifySuccess(:final payload):
             _currentPayload = payload;
@@ -122,12 +128,14 @@ class BillingSdk {
   /// On failure, show [BillingTokenError.message] in an error notification.
   static VerifyResult verifyAndDecode(String pastedJson) {
     final result = _verifierOrThrow.verifyAndDecode(pastedJson);
+
     switch (result) {
       case VerifySuccess(:final payload):
         _currentPayload = payload;
       case VerifyFailure():
         break;
     }
+
     return result;
   }
 }

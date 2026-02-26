@@ -18,26 +18,30 @@ class SyncFailure implements SyncResult {
 /// HTTP client for the Billing API (sync and optional public-key fetch).
 class BillingApiClient {
   BillingApiClient({required String baseUrl})
-      : _baseUrl = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
+    : _baseUrl = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
 
   final String _baseUrl;
 
   /// GET /api/billing/sdk-token?email=... or ?ssoId=...
   /// Returns [SyncSuccess] with signedToken or [SyncFailure] with user-facing message.
-  Future<SyncResult> fetchSdkToken({
-    String? email,
-    String? ssoId,
-  }) async {
+  Future<SyncResult> fetchSdkToken({String? email, String? ssoId}) async {
     if ((email == null || email.isEmpty) && (ssoId == null || ssoId.isEmpty)) {
       return const SyncFailure(message: 'Missing user identifier.');
     }
-    if (email != null && email.isNotEmpty && ssoId != null && ssoId.isNotEmpty) {
-      return const SyncFailure(message: 'Provide either email or ssoId, not both.');
+
+    if (email != null &&
+        email.isNotEmpty &&
+        ssoId != null &&
+        ssoId.isNotEmpty) {
+      return const SyncFailure(
+        message: 'Provide either email or ssoId, not both.',
+      );
     }
 
     final query = email != null && email.isNotEmpty
         ? 'email=${Uri.encodeComponent(email)}'
         : 'ssoId=${Uri.encodeComponent(ssoId!)}';
+
     final uri = Uri.parse('${_baseUrl}api/billing/sdk-token?$query');
 
     try {
@@ -50,22 +54,23 @@ class BillingApiClient {
           return SyncSuccess(signedToken: token);
         }
         return const SyncFailure(
-            message: 'Sync failed. Invalid response from server.');
+          message: 'Sync failed. Invalid response from server.',
+        );
       }
 
       if (response.statusCode == 400) {
         return const SyncFailure(message: 'Missing user identifier.');
       }
+
       if (response.statusCode == 404) {
         return const SyncFailure(
-            message: 'No billing account found for this user.');
+          message: 'No billing account found for this user.',
+        );
       }
 
-      return const SyncFailure(
-          message: 'Sync failed. Try again later.');
+      return const SyncFailure(message: 'Sync failed. Try again later.');
     } catch (_) {
-      return const SyncFailure(
-          message: 'Sync failed. Try again later.');
+      return const SyncFailure(message: 'Sync failed. Try again later.');
     }
   }
 }
