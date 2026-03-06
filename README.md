@@ -32,19 +32,24 @@ flutter pub get
 
 ## Setup
 
-1. **Configure** the SDK once (e.g. at app startup), before any other calls:
+1. **Configure** the SDK once (e.g. at app startup), before any other calls.
+
+   **Recommended:** Embed the Billing API public key as an asset so it is included in the build. Add the `.pem` file to your `pubspec.yaml` under `flutter: assets:`. Use a path that does **not** start with `assets/` (e.g. `keys/billing_public.pem`) so Flutter web does not double-prefix the URL:
 
 ```dart
 import 'package:billing_flutter_sdk/billing_flutter_sdk.dart';
 
-void main() {
-  BillingSdk.configure(
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await BillingSdk.configureWithAsset(
     billingApiBaseUrl: 'https://billing.example.com',
-    publicKeyPem: null, // optional; omit to use SDK default (set for production)
+    publicKeyAsset: 'keys/billing_public.pem',
   );
   runApp(MyApp());
 }
 ```
+
+   The asset content is validated (must contain `-----BEGIN PUBLIC KEY-----` and `-----END PUBLIC KEY-----`). Alternatively use [configure](#configuration) with `publicKeyPem` or `publicKeyPath`.
 
 2. **Init** on app start with the saved token from your storage (e.g. secure storage). If you have no token yet, pass `null`.
 
@@ -107,6 +112,8 @@ switch (result) {
 |--------|-------------|
 | `billingApiBaseUrl` | Base URL of the Billing API (required for `syncFromServer`). |
 | `publicKeyPem` | PEM string to verify JWTs. If omitted, the SDK uses an embedded default; **set from your Billing API in production.** |
+| `publicKeyPath` | Path to a `.pem` file on disk. The file is read and validated (must contain `-----BEGIN PUBLIC KEY-----` and `-----END PUBLIC KEY-----`). Not supported on web; use `publicKeyPem` or asset there. |
+| **Asset (recommended)** | Call `BillingSdk.configureWithAsset(publicKeyAsset: 'keys/billing_public.pem')` (or `loadPublicKeyFromAsset` then `configure`). Use a path that does not start with `assets/` (e.g. `keys/`) so web works. Add the `.pem` to `pubspec.yaml` under `flutter: assets:`. Same PEM validation applies. |
 
 ---
 

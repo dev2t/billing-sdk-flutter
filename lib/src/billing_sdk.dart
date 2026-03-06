@@ -1,5 +1,7 @@
 import 'package:billing_flutter_sdk/src/api/billing_api_client.dart';
 import 'package:billing_flutter_sdk/src/keys/default_public_key.dart';
+import 'package:billing_flutter_sdk/src/keys/public_key_loader.dart';
+import 'package:billing_flutter_sdk/src/keys/public_key_loader_asset.dart';
 import 'package:billing_flutter_sdk/src/models/billing_token_error.dart';
 import 'package:billing_flutter_sdk/src/models/billing_token_payload.dart';
 import 'package:billing_flutter_sdk/src/verification/token_verifier.dart';
@@ -23,11 +25,36 @@ class BillingSdk {
   /// [billingApiBaseUrl] – base URL for sync (e.g. `https://billing.example.com`).
   /// [publicKeyPem] – PEM string to verify JWTs; if null, uses embedded default
   /// (replace with key from Billing API in production).
-  static void configure({String? billingApiBaseUrl, String? publicKeyPem}) {
+  /// [publicKeyPath] – path to a .pem file; file content is read and validated for
+  /// standard PEM boundaries (-----BEGIN PUBLIC KEY----- / -----END PUBLIC KEY-----).
+  /// Not supported on web (throws [UnsupportedError]); use [publicKeyPem] there.
+  ///
+  /// For embedding the key in your build, use [configureWithAsset] with an asset path
+  /// (e.g. `keys/billing_public.pem`; avoid paths starting with `assets/` on web).
+  static void configure({
+    String? billingApiBaseUrl,
+    String? publicKeyPem,
+    String? publicKeyPath,
+  }) {
     if (billingApiBaseUrl != null) _billingApiBaseUrl = billingApiBaseUrl;
     if (publicKeyPem != null) _publicKeyPem = publicKeyPem;
+    if (publicKeyPath != null && publicKeyPath.trim().isNotEmpty) {
+      _publicKeyPem = loadPublicKeyFromPath(publicKeyPath.trim());
+    }
     _verifier = null;
     _apiClient = null;
+  }
+
+  /// Configures the SDK using a public key loaded from a Flutter asset.
+  /// The key is embedded at build time. Validates PEM boundaries before use.
+  ///
+  /// Add the .pem file to your `pubspec.yaml` under `flutter: assets:` (e.g. `keys/billing_public.pem`).
+  static Future<void> configureWithAsset({
+    String? billingApiBaseUrl,
+    required String publicKeyAsset,
+  }) async {
+    final pem = await loadPublicKeyFromAsset(publicKeyAsset);
+    configure(billingApiBaseUrl: billingApiBaseUrl, publicKeyPem: pem);
   }
 
   /// Resets all static state. For testing only.

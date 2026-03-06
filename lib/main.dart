@@ -33,8 +33,12 @@ class BillingExamplePage extends StatefulWidget {
 class _BillingExamplePageState extends State<BillingExamplePage> {
   final TextEditingController _tokenController = TextEditingController();
   final TextEditingController _uniqueIdController = TextEditingController();
+  final TextEditingController _publicKeyPathController = TextEditingController();
   bool _syncing = false;
   String? _savedToken;
+  static const _defaultBillingBaseUrl = 'https://billing.example.com';
+
+  static const _publicKeyAsset = 'keys/billing_public.pem';
 
   @override
   void initState() {
@@ -42,13 +46,38 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
     _initSdk();
   }
 
-  void _initSdk() {
-    BillingSdk.configure(
-      billingApiBaseUrl: 'https://billing.example.com',
-      publicKeyPem: null, // use SDK default; set from Billing API in production
+  Future<void> _initSdk() async {
+    debugPrint('[BillingExample] Init: configuring SDK with asset $_publicKeyAsset…');
+
+    try {
+      await BillingSdk.configureWithAsset(
+        billingApiBaseUrl: _defaultBillingBaseUrl,
+        publicKeyAsset: _publicKeyAsset,
+      );
+      debugPrint('[BillingExample] Init: public key loaded from asset (embedded in build).');
+    } on FormatException catch (e) {
+      debugPrint('[BillingExample] Init: asset invalid — ${e.message}');
+      BillingSdk.configure(billingApiBaseUrl: _defaultBillingBaseUrl);
+    } catch (e, st) {
+      debugPrint('[BillingExample] Init: asset load failed — $e');
+      debugPrint(st.toString());
+      BillingSdk.configure(billingApiBaseUrl: _defaultBillingBaseUrl);
+    }
+
+    debugPrint(
+      '[BillingExample] Init: savedToken=${_savedToken != null ? "${_savedToken!.length} chars" : "null"}',
     );
-    // In a real app: read saved token from secure storage and call BillingSdk.init(savedToken)
+
     BillingSdk.init(_savedToken);
+    if (mounted) setState(() {});
+    final payload = BillingSdk.getPayload();
+    if (payload != null) {
+      debugPrint(
+        '[BillingExample] Init: payload loaded — payingParty=${payload.payingParty.id}, subscriptions=${payload.subscriptionIds.length}',
+      );
+    } else {
+      debugPrint('[BillingExample] Init: no payload (null or invalid token)');
+    }
   }
 
   void _showError(String message) {
@@ -65,34 +94,75 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
 
   void _onPasteVerify() {
     final pasted = _tokenController.text.trim();
+    final path = _publicKeyPathController.text.trim();
+    debugPrint(
+      '[BillingExample] Paste+Verify: input length=${pasted.length}, publicKeyPath=${path.isEmpty ? "none" : path}',
+    );
     if (pasted.isEmpty) {
       _showError('Paste a token first.');
+      debugPrint('[BillingExample] Paste+Verify: skipped (empty)');
       return;
+    }
+    if (path.isNotEmpty) {
+      try {
+        BillingSdk.configure(
+          billingApiBaseUrl: _defaultBillingBaseUrl,
+          publicKeyPath: path,
+        );
+        debugPrint(
+          '[BillingExample] Paste+Verify: configured with public key from path',
+        );
+      } on UnsupportedError catch (e) {
+        _showError(e.message ?? e.toString());
+        return;
+      } on FormatException catch (e) {
+        _showError(e.message);
+        return;
+      }
     }
     final result = BillingSdk.verifyAndDecode(pasted);
     switch (result) {
       case VerifySuccess(:final payload):
         _savedToken = pasted;
+        debugPrint(
+          '[BillingExample] Paste+Verify: SUCCESS — payingParty=${payload.payingParty.id}, '
+          'ssoId=${payload.payingParty.ssoId}, subscriptions=${payload.subscriptionIds}, '
+          'expiresAt=${payload.expiresAt.toIso8601String()}',
+        );
         _showSuccess(
-            'Token verified. Paying party: ${payload.payingPartyId}, subscriptions: ${payload.subscriptionIds.length}');
+          'Token verified. Paying party: ${payload.payingParty.id}, subscriptions: ${payload.subscriptionIds.length}',
+        );
       case VerifyFailure(:final error):
+        debugPrint(
+          '[BillingExample] Paste+Verify: FAILED — reason=${error.reason}, message=${error.message}',
+        );
         _showError(error.message);
     }
   }
 
   Future<void> _onSync() async {
     final uniqueId = _uniqueIdController.text.trim();
+    debugPrint(
+      '[BillingExample] Sync: uniqueId=${uniqueId.isEmpty ? "(empty)" : uniqueId}',
+    );
     if (uniqueId.isEmpty) {
       _showError('Enter email or SSO id.');
+      debugPrint('[BillingExample] Sync: skipped (empty uniqueId)');
       return;
     }
     setState(() => _syncing = true);
+    debugPrint('[BillingExample] Sync: calling API…');
     final result = await BillingSdk.syncFromServer(uniqueId: uniqueId);
     setState(() => _syncing = false);
     switch (result) {
       case SyncSuccess():
+        final payload = BillingSdk.getPayload();
+        debugPrint(
+          '[BillingExample] Sync: SUCCESS — payload=${payload != null ? "payingParty=${payload.payingParty.id}, subscriptions=${payload.subscriptionIds.length}" : "null"}',
+        );
         _showSuccess('Billing synced.');
       case SyncFailure(:final message):
+        debugPrint('[BillingExample] Sync: FAILED — message=$message');
         _showError(message);
     }
   }
@@ -117,20 +187,43 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Current billing',
-                          style: Theme.of(context).textTheme.titleSmall),
+                      Text(
+                        'Current billing',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                       const SizedBox(height: 4),
-                      Text('Paying party: ${payload.payingPartyId}'),
-                      Text('Subscriptions: ${payload.subscriptionIds.join(", ")}'),
-                      if (payload.email != null) Text('Email: ${payload.email}'),
+                      Text('Paying party: ${payload.payingParty.id}'),
+                      Text(
+                        'Subscriptions: ${payload.subscriptionIds.join(", ")}',
+                      ),
+                      if (payload.email != null)
+                        Text('Email: ${payload.email}'),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 16),
             ],
-            Text('Paste token',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Public key file path (optional)',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Path to a .pem file containing the Billing API public key. File must contain -----BEGIN PUBLIC KEY----- and -----END PUBLIC KEY-----. Leave empty to use SDK default (test key only). Not supported on web.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _publicKeyPathController,
+              maxLines: 1,
+              decoration: const InputDecoration(
+                hintText: 'e.g. /path/to/billing_public.pem',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Paste token', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             TextField(
               controller: _tokenController,
@@ -146,8 +239,10 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
               child: const Text('Verify and save'),
             ),
             const SizedBox(height: 24),
-            Text('Sync from server',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Sync from server',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _uniqueIdController,
@@ -178,6 +273,7 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
   void dispose() {
     _tokenController.dispose();
     _uniqueIdController.dispose();
+    _publicKeyPathController.dispose();
     super.dispose();
   }
 }
