@@ -22,8 +22,8 @@ class BillingApiClient {
 
   final String _baseUrl;
 
-  /// GET /api/billing/sdk-token?email=... or ?ssoId=...
-  /// Returns [SyncSuccess] with signedToken or [SyncFailure] with user-facing message.
+  /// GET /api/billing/license?email=... or ?ssoId=...
+  /// Response: map with key `signedToken` (JWT string). Returns [SyncSuccess] or [SyncFailure].
   Future<SyncResult> fetchSdkToken({String? email, String? ssoId}) async {
     if ((email == null || email.isEmpty) && (ssoId == null || ssoId.isEmpty)) {
       return const SyncFailure(message: 'Missing user identifier.');
@@ -42,7 +42,7 @@ class BillingApiClient {
         ? 'email=${Uri.encodeComponent(email)}'
         : 'ssoId=${Uri.encodeComponent(ssoId!)}';
 
-    final uri = Uri.parse('${_baseUrl}api/billing/sdk-token?$query');
+    final uri = Uri.parse('${_baseUrl}api/billing/license?$query');
 
     try {
       final response = await http.get(uri);

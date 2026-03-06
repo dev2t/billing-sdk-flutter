@@ -33,25 +33,26 @@ TQrKhArgLXX4v3CddjfTRJkFWDbE/CkvKZNOrcf1nhaGCPspRJj2KUkj1Fhl9Cnc
 dn/RsYEONbwQSjIfMPkvxF+8HQ==
 -----END PRIVATE KEY-----''';
 
-/// Canonical payload shape per PLAN §8.2 (subscriptions[], sso_id, billing_email, payload_version).
+/// Flat payload: payload_version, iss, aud, iat, exp, paying_party, subscriptions[].
 String _createCanonicalBillingToken({Duration? expiresIn}) {
   final exp = expiresIn != null
       ? DateTime.now().add(expiresIn).millisecondsSinceEpoch ~/ 1000
       : DateTime.now().add(const Duration(hours: 1)).millisecondsSinceEpoch ~/ 1000;
   final iat = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-  final periodStart = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
-  final periodEnd = DateTime.now().toUtc().add(const Duration(days: 30)).millisecondsSinceEpoch ~/ 1000;
+  final validUntil = DateTime.now().toUtc().add(const Duration(days: 30)).millisecondsSinceEpoch ~/ 1000;
   final jwt = JWT(
     {
-      'paying_party_id': 'party_456',
-      'sso_id': 'sso_abc',
-      'billing_email': 'billing@example.com',
-      'organization_name': 'Acme Inc',
       'payload_version': 1,
-      'exp': exp,
-      'iat': iat,
-      'iss': 'https://billing.example.com',
+      'iss': 'https://billing.scomm.ai',
       'aud': 'scomm',
+      'iat': iat,
+      'exp': exp,
+      'paying_party': {
+        'id': 'party_456',
+        'sso_id': 'sso_abc',
+        'billing_email': 'billing@example.com',
+        'organization_name': 'Acme Inc',
+      },
       'subscriptions': [
         {
           'subscription_id': 'sub_canon_1',
@@ -60,10 +61,8 @@ String _createCanonicalBillingToken({Duration? expiresIn}) {
           'plan_name': 'Premium',
           'product_name': 'Product One',
           'subscription_status': 'active',
-          'current_period_start': periodStart,
-          'current_period_end': periodEnd,
-          'pricing_id': 'price_1',
-          'billing_interval': 'month',
+          'valid_until': validUntil,
+          'assigned_user_party_id': null,
         },
       ],
     },
@@ -101,9 +100,9 @@ void main() {
         BillingSdk.init(token);
         final payload = BillingSdk.getPayload();
         expect(payload, isNotNull);
-        expect(payload!.payingPartyId, 'party_456');
-        expect(payload.ssoId, 'sso_abc');
-        expect(payload.billingEmail, 'billing@example.com');
+        expect(payload!.payingParty.id, 'party_456');
+        expect(payload.payingParty.ssoId, 'sso_abc');
+        expect(payload.payingParty.billingEmail, 'billing@example.com');
         expect(payload.subscriptionIds, ['sub_canon_1']);
         expect(payload.email, 'billing@example.com');
         expect(payload.hasSubscription('sub_canon_1'), isTrue);
@@ -131,8 +130,8 @@ void main() {
         final result = BillingSdk.verifyAndDecode(token);
         expect(result, isA<VerifySuccess>());
         final payload = (result as VerifySuccess).payload;
-        expect(payload.payingPartyId, 'party_456');
-        expect(BillingSdk.getPayload()?.payingPartyId, 'party_456');
+        expect(payload.payingParty.id, 'party_456');
+        expect(BillingSdk.getPayload()?.payingParty.id, 'party_456');
       });
     });
 

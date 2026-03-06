@@ -4,6 +4,24 @@ This document is the single source of truth for the **Billing Flutter SDK**. The
 
 ---
 
+## 0. Build-time constants and “license” flow
+
+**Build-time constants** (SDK / app):
+
+| Constant | Value |
+|----------|--------|
+| **BillingURL** | `billing.scomm.ai` (e.g. `https://billing.scomm.ai`) |
+| **PublicKeyID** | `t764` |
+| **PublicKeyValue** | RSA public key PEM (see Billing API doc `docs/BILLING_TOKEN_PAYLOAD.md` §0) |
+
+**App “license” flow (metaphor):**
+
+- **GET /license (on startup):** App calls Billing API to get the license (signed JWT), then SDK parses it and keeps payload in memory. Requires Billing API to expose **GET /api/billing/license** (or **sdk-token**) with query `email` or `ssoId` – **not yet implemented** (only GET /api/billing/me exists today).
+- **POST /license:** User pastes license; SDK verifies and decodes (no server call). Implemented as SDK `verifyAndDecode(pastedString)`.
+- **SYNC /license:** Same as GET – call Billing URL to get fresh license; SDK verifies and updates in-memory. Same endpoint as GET /license.
+
+---
+
 ## 1. SDK Responsibilities
 
 The SDK is responsible for the following:
@@ -209,40 +227,38 @@ Used to verify the JWT signature. SDK may instead embed the public key; then thi
 
 ### 8.2 Signed JWT payload (claims) – Billing API issues, SDK consumes
 
-The Billing API signs a JWT (e.g. RS256); the SDK verifies and decodes it. Both sides must use this payload shape.
+The Billing API signs a JWT (e.g. RS256); the SDK verifies and decodes it. The **canonical payload structure** (DB-aligned, extendable) is defined in the Billing API repo: **`docs/BILLING_TOKEN_PAYLOAD.md`**. Summary below; SDK must implement parsing for this shape.
 
-| Claim (key) | Type | Required | Description |
-|-------------|------|----------|-------------|
-| `paying_party_id` | `string` | Yes | Paying party ID (opaque). |
-| `subscription_ids` | `string[]` | Yes | List of active subscription IDs for entitlements. |
-| `email` | `string` | No | Billing email. |
-| `exp` | `number` | Yes | Expiry (Unix seconds). |
-| `iat` | `number` | No | Issued at (Unix seconds). |
-| `iss` | `string` | Yes | Issuer (e.g. Billing API base URL or app name). |
-| `aud` | `string` | No | Audience (e.g. app bundle id or "scomm"). |
+**Standard claims:** `exp`, `iat`, `iss`, `aud` (see §8.1 in payload doc).
 
-**Example decoded payload (JSON)**
+**Versioning:** `payload_version` (number, e.g. `1`) – SDK should support at least v1 and ignore unknown keys for forward compatibility.
 
-```json
-{
-  "paying_party_id": "12345",
-  "subscription_ids": ["sub_1", "sub_2"],
-  "email": "user@example.com",
-  "exp": 1735689600,
-  "iat": 1735603200,
-  "iss": "https://billing.example.com",
-  "aud": "scomm"
-}
-```
+**Paying party (required):** `paying_party_id`, `sso_id`, `billing_email`, `organization_name` (optional: `grace_period_days`, `monthly_billing_anchor`, `annual_billing_anchor`).
+
+**Mailboxes (required):** array `mailboxes[]` – one entry per mailbox the current user has access to. Each object has:
+
+- `mailbox_id` (string, e.g. email like `tamur@gmail.com`)
+- `entitlements` (array) – each element: `subscription_id`, `plan_id`, `product_id`, `plan_name`, `product_name`, `subscription_status`, `valid_until` (Unix seconds), `pricing_id`, `billing_interval`, etc.
+
+When the token is issued for a user (by `ssoId` or `email`), **all mailboxes in the array belong to that user**; no client-side filtering by user is needed.
+
+**Optional “per user”:** `user_party_id`, `sso_id_global` at top level when token was issued for a specific user (e.g. sync by user).
+
+**Extension:** optional `metadata` or `features`; SDK can ignore if not needed.
 
 **SDK model** – `BillingTokenPayload` (Dart) must map from these claims, e.g.:
 
 - `payingPartyId` ← `paying_party_id`
-- `subscriptionIds` ← `subscription_ids`
-- `email` ← `email`
-- `expiresAt` ← `exp` (convert to `DateTime`)
+- `ssoId` ← `sso_id`
+- `billingEmail` / `email` ← `billing_email`
+- `organizationName` ← `organization_name`
+- `mailboxes` ← `mailboxes[]` → `List<BillingMailbox>` with `mailboxId`, `entitlements` → `List<BillingEntitlement>` (subscriptionId, planId, productId, planName, productName, status, validUntil, etc.)
+- `expiresAt` ← `exp` (Unix → `DateTime`)
 - `issuedAt` ← `iat` (optional)
-- `issuer` ← `iss`, `audience` ← `aud` (optional)
+- `payloadVersion` ← `payload_version`
+- `userPartyId` / `ssoIdGlobal` (optional) when present
+
+For **add-on checks** the app uses `payload.mailboxes` and, for a given mailbox (e.g. current account), checks `mailbox.entitlements.any((e) => e.planId == targetPlanId)` or `e.productId == targetProductId`, and `e.validUntil` for expiry.
 
 ---
 
@@ -327,8 +343,9 @@ After init, the app uses `BillingSdk.getPayload()` for add-on checks.
 
 ## 10. References
 
+- **Token payload structure (DB-aligned, extendable):** Billing API repo `docs/BILLING_TOKEN_PAYLOAD.md` – canonical JSON shape, DB mapping, versioning, extensions.
 - **Auth and OAuth flow:** See Billing API repo docs (e.g. `AUTH_OAUTH_AND_BILLING_FLOW.md`).
-- **Billing API:** JWT issuance, public key endpoint, and sync endpoint per §8.
+- **Billing API:** JWT issuance (payload per BILLING_TOKEN_PAYLOAD.md), public key endpoint, and sync endpoint per §8.
 
 ---
 
