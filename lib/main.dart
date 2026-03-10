@@ -33,10 +33,12 @@ class BillingExamplePage extends StatefulWidget {
 class _BillingExamplePageState extends State<BillingExamplePage> {
   final TextEditingController _tokenController = TextEditingController();
   final TextEditingController _uniqueIdController = TextEditingController();
-  final TextEditingController _publicKeyPathController = TextEditingController();
+  final TextEditingController _authTokenController = TextEditingController();
+  final TextEditingController _publicKeyPathController =
+      TextEditingController();
   bool _syncing = false;
   String? _savedToken;
-  static const _defaultBillingBaseUrl = 'https://billing.example.com';
+  static const _defaultBillingBaseUrl = 'http://localhost:3000';
 
   static const _publicKeyAsset = 'keys/billing_public.pem';
 
@@ -47,14 +49,18 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
   }
 
   Future<void> _initSdk() async {
-    debugPrint('[BillingExample] Init: configuring SDK with asset $_publicKeyAsset…');
+    debugPrint(
+      '[BillingExample] Init: configuring SDK with asset $_publicKeyAsset…',
+    );
 
     try {
       await BillingSdk.configureWithAsset(
         billingApiBaseUrl: _defaultBillingBaseUrl,
         publicKeyAsset: _publicKeyAsset,
       );
-      debugPrint('[BillingExample] Init: public key loaded from asset (embedded in build).');
+      debugPrint(
+        '[BillingExample] Init: public key loaded from asset (embedded in build).',
+      );
     } on FormatException catch (e) {
       debugPrint('[BillingExample] Init: asset invalid — ${e.message}');
       BillingSdk.configure(billingApiBaseUrl: _defaultBillingBaseUrl);
@@ -141,25 +147,34 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
   }
 
   Future<void> _onSync() async {
-    final uniqueId = _uniqueIdController.text.trim();
+    final input = _uniqueIdController.text.trim();
     debugPrint(
-      '[BillingExample] Sync: uniqueId=${uniqueId.isEmpty ? "(empty)" : uniqueId}',
+      '[BillingExample] Sync: input=${input.isEmpty ? "(empty)" : input}',
     );
-    if (uniqueId.isEmpty) {
+    if (input.isEmpty) {
       _showError('Enter email or SSO id.');
-      debugPrint('[BillingExample] Sync: skipped (empty uniqueId)');
+      debugPrint('[BillingExample] Sync: skipped (empty)');
       return;
     }
+    final authToken = _authTokenController.text.trim();
     setState(() => _syncing = true);
     debugPrint('[BillingExample] Sync: calling API…');
-    final result = await BillingSdk.syncFromServer(uniqueId: uniqueId);
+    // Example app: single field → pass as email or ssoId (SDK does not define this convention)
+    final result = await BillingSdk.syncFromServer(
+      email: input.contains('@') ? input : null,
+      ssoId: input.contains('@') ? null : input,
+      authorizationToken: authToken.isEmpty ? null : authToken,
+    );
+
     setState(() => _syncing = false);
     switch (result) {
       case SyncSuccess():
         final payload = BillingSdk.getPayload();
+
         debugPrint(
           '[BillingExample] Sync: SUCCESS — payload=${payload != null ? "payingParty=${payload.payingParty.id}, subscriptions=${payload.subscriptionIds.length}" : "null"}',
         );
+
         _showSuccess('Billing synced.');
       case SyncFailure(:final message):
         debugPrint('[BillingExample] Sync: FAILED — message=$message');
@@ -243,6 +258,11 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
               'Sync from server',
               style: Theme.of(context).textTheme.titleMedium,
             ),
+            const SizedBox(height: 4),
+            Text(
+              'License endpoint is protected. Add authorization token (Bearer/ssoToken) if required.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _uniqueIdController,
@@ -251,6 +271,16 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
                 border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _authTokenController,
+              decoration: const InputDecoration(
+                labelText: 'Authorization token (optional)',
+                hintText: 'Bearer token or SSO token',
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
             ),
             const SizedBox(height: 8),
             FilledButton(
@@ -273,6 +303,7 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
   void dispose() {
     _tokenController.dispose();
     _uniqueIdController.dispose();
+    _authTokenController.dispose();
     _publicKeyPathController.dispose();
     super.dispose();
   }

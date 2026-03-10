@@ -1,5 +1,9 @@
 import 'billing_subscription.dart';
+import 'jwt_payload_keys.dart';
 import 'paying_party.dart';
+
+/// Default expiry when JWT has no exp claim.
+final DateTime _defaultExpiresAt = DateTime.utc(2099, 12, 31);
 
 /// Decoded billing license token payload from the signed JWT.
 /// Flat shape: payload_version, iss, aud, iat, exp, paying_party, subscriptions[].
@@ -21,6 +25,35 @@ class BillingTokenPayload {
   final String? audience;
   final PayingParty payingParty;
   final List<BillingSubscription> subscriptions;
+
+  /// Parses from JWT payload map. Throws [FormatException] if required fields are missing/invalid.
+  factory BillingTokenPayload.fromJson(Map<String, dynamic> json) {
+    final version = parseInt(getKey(json, 'payload_version', 'payloadVersion'));
+    if (version == null) throw FormatException('payload_version (number) required.');
+    final exp = parseInt(json['exp']);
+    final expiresAt = exp != null ? dateTimeFromUnixSeconds(exp) : _defaultExpiresAt;
+    final payingPartyRaw = getKey(json, 'paying_party', 'payingParty');
+    if (payingPartyRaw is! Map<String, dynamic>) throw FormatException('paying_party object required.');
+    final payingParty = PayingParty.fromJson(payingPartyRaw);
+    final subscriptionsRaw = json['subscriptions'];
+    if (subscriptionsRaw is! List) throw FormatException('subscriptions array required.');
+    final subscriptions = <BillingSubscription>[];
+    for (var i = 0; i < subscriptionsRaw.length; i++) {
+      final item = subscriptionsRaw[i];
+      if (item is! Map<String, dynamic>) throw FormatException('subscriptions[$i] must be an object.');
+      subscriptions.add(BillingSubscription.fromJson(item));
+    }
+    final iat = parseInt(json['iat']);
+    return BillingTokenPayload(
+      payloadVersion: version,
+      expiresAt: expiresAt,
+      payingParty: payingParty,
+      subscriptions: subscriptions,
+      issuedAt: iat != null ? dateTimeFromUnixSeconds(iat) : null,
+      issuer: json['iss'] is String ? json['iss'] as String : null,
+      audience: json['aud'] is String ? json['aud'] as String : null,
+    );
+  }
 
   /// Convenience alias for [payingParty] (e.g. when migrating from mailbox-based payloads).
   PayingParty? get firstPayingParty => payingParty;

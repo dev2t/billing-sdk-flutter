@@ -1,3 +1,5 @@
+import 'jwt_payload_keys.dart';
+
 /// A single subscription in the billing token payload.
 /// Each element of top-level `subscriptions[]`.
 class BillingSubscription {
@@ -20,6 +22,36 @@ class BillingSubscription {
   final String subscriptionStatus;
   final DateTime validUntil;
   final String? assignedUserPartyId;
+
+  /// Parses from subscription object in JWT payload. Throws [FormatException] if invalid.
+  factory BillingSubscription.fromJson(Map<String, dynamic> json) {
+    final subscriptionId = getKey(json, 'subscription_id', 'subscriptionId');
+    final planId = getKey(json, 'plan_id', 'planId');
+    final productId = getKey(json, 'product_id', 'productId');
+    final planName = getKey(json, 'plan_name', 'planName');
+    final productName = getKey(json, 'product_name', 'productName');
+    final status = getKey(json, 'subscription_status', 'subscriptionStatus');
+    final validUntil = getKey(json, 'valid_until', 'validUntil');
+    if (subscriptionId is! String) throw FormatException('subscriptions[].subscription_id required.');
+    if (planId is! String) throw FormatException('subscriptions[].plan_id required.');
+    if (productId is! String) throw FormatException('subscriptions[].product_id required.');
+    if (planName is! String) throw FormatException('subscriptions[].plan_name required.');
+    if (productName is! String) throw FormatException('subscriptions[].product_name required.');
+    if (status is! String) throw FormatException('subscriptions[].subscription_status required.');
+    final validUntilInt = parseInt(validUntil);
+    if (validUntilInt == null) throw FormatException('subscriptions[].valid_until required (Unix timestamp).');
+    final assigned = getKey(json, 'assigned_user_party_id', 'assignedUserPartyId');
+    return BillingSubscription(
+      subscriptionId: subscriptionId,
+      planId: planId,
+      productId: productId,
+      planName: planName,
+      productName: productName,
+      subscriptionStatus: status,
+      validUntil: dateTimeFromUnixSeconds(validUntilInt),
+      assignedUserPartyId: assigned is String && assigned.isNotEmpty ? assigned : null,
+    );
+  }
 
   /// Whether this subscription is currently active (e.g. active, trialing).
   bool get isActive =>

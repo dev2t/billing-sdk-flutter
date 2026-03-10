@@ -106,22 +106,15 @@ class BillingSdk {
   static BillingTokenPayload? getPayload() => _currentPayload;
 
   /// Syncs from the Billing API by user identifier. On success, updates in-memory state.
+  /// The license endpoint is protected: pass [authorizationToken] (e.g. Bearer/ssoToken) when required.
   /// Returns [SyncResult]; on failure, use the message for an error notification.
   static Future<SyncResult> syncFromServer({
     String? email,
     String? ssoId,
-    String? uniqueId,
+    String? authorizationToken,
   }) async {
     String? emailParam = email;
     String? ssoIdParam = ssoId;
-
-    if (uniqueId != null && uniqueId.isNotEmpty) {
-      if (uniqueId.contains('@')) {
-        emailParam = uniqueId;
-      } else {
-        ssoIdParam = uniqueId;
-      }
-    }
 
     if ((emailParam == null || emailParam.isEmpty) &&
         (ssoIdParam == null || ssoIdParam.isEmpty)) {
@@ -132,6 +125,7 @@ class BillingSdk {
     final result = await client.fetchSdkToken(
       email: emailParam,
       ssoId: ssoIdParam,
+      authorizationToken: authorizationToken,
     );
 
     switch (result) {

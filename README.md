@@ -76,10 +76,13 @@ if (payload != null && payload.hasSubscription('sub_premium')) {
 
 ### Sync from server
 
-Call when the user taps “Sync billing” (or similar). Use email or SSO id as required by your Billing API.
+Call when the user taps “Sync billing” (or similar). Use email or SSO id as required by your Billing API. The license endpoint is protected: pass `authorizationToken` (e.g. Bearer or SSO token) when your backend requires it.
 
 ```dart
-final result = await BillingSdk.syncFromServer(uniqueId: userEmailOrSsoId);
+final result = await BillingSdk.syncFromServer(
+  email: userEmail,   // or ssoId: userSsoId
+  authorizationToken: userAuthToken, // optional; required if endpoint is protected
+);
 switch (result) {
   case SyncSuccess():
     // Optionally persist the new token; payload is already in memory
@@ -87,8 +90,6 @@ switch (result) {
     // Show message in a snackbar or dialog
 }
 ```
-
-You can also pass `email:` or `ssoId:` explicitly instead of `uniqueId:`.
 
 ### Paste + verify
 

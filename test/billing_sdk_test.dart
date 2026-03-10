@@ -139,13 +139,13 @@ void main() {
       test('without billingApiBaseUrl throws on sync', () async {
         BillingSdk.resetForTesting();
         expectLater(
-          BillingSdk.syncFromServer(uniqueId: 'user@test.com'),
+          BillingSdk.syncFromServer(email: 'user@test.com'),
           throwsStateError,
         );
       });
 
-      test('with empty uniqueId returns SyncFailure', () async {
-        final result = await BillingSdk.syncFromServer(uniqueId: '');
+      test('with no email/ssoId returns SyncFailure', () async {
+        final result = await BillingSdk.syncFromServer();
         expect(result, isA<SyncFailure>());
         expect((result as SyncFailure).message, contains('identifier'));
       });
