@@ -1,32 +1,53 @@
 import 'jwt_payload_keys.dart';
 
 /// Paying party (org) that owns the subscriptions.
-/// Top-level `paying_party` or nested under a mailbox.
+/// Schema: id, identity_provider, identity_subject, billing_email, organization_name (optional).
 class PayingParty {
   const PayingParty({
     required this.id,
-    required this.ssoId,
+    required this.identityProvider,
+    required this.identitySubject,
     required this.billingEmail,
     this.organizationName,
   });
 
   final String id;
-  final String ssoId;
+  /// IdP name (e.g. "google", "microsoft").
+  final String identityProvider;
+  /// Subject ID from the identity provider.
+  final String identitySubject;
   final String billingEmail;
   final String? organizationName;
 
+  /// Legacy: use [identitySubject]. Kept for backward compatibility.
+  String get ssoId => identitySubject;
+
   /// Parses from JWT payload map (snake_case or camelCase). Throws [FormatException] if invalid.
+  /// Accepts current schema (identity_provider, identity_subject) or legacy sso_id.
   factory PayingParty.fromJson(Map<String, dynamic> json) {
     final id = getKey(json, 'id', 'id');
-    final ssoId = getKey(json, 'sso_id', 'ssoId');
+    final identityProvider = getKey(json, 'identity_provider', 'identityProvider');
+    final identitySubject = getKey(json, 'identity_subject', 'identitySubject');
+    final ssoIdLegacy = getKey(json, 'sso_id', 'ssoId');
     final billingEmail = getKey(json, 'billing_email', 'billingEmail');
     if (id is! String || id.isEmpty) throw FormatException('paying_party.id required.');
-    if (ssoId is! String || ssoId.isEmpty) throw FormatException('paying_party.sso_id required.');
     if (billingEmail is! String) throw FormatException('paying_party.billing_email required.');
+    final provider = identityProvider is String && identityProvider.isNotEmpty
+        ? identityProvider
+        : (ssoIdLegacy is String && ssoIdLegacy.isNotEmpty ? 'legacy' : null);
+    final subject = identitySubject is String && identitySubject.isNotEmpty
+        ? identitySubject
+        : (ssoIdLegacy is String ? ssoIdLegacy : null);
+    if (provider == null || subject == null) {
+      throw FormatException(
+        'paying_party: identity_provider and identity_subject required (or legacy sso_id).',
+      );
+    }
     final org = getKey(json, 'organization_name', 'organizationName');
     return PayingParty(
       id: id,
-      ssoId: ssoId,
+      identityProvider: provider,
+      identitySubject: subject,
       billingEmail: billingEmail,
       organizationName: org is String ? org : null,
     );
@@ -37,10 +58,12 @@ class PayingParty {
       identical(this, other) ||
       other is PayingParty &&
           id == other.id &&
-          ssoId == other.ssoId &&
+          identityProvider == other.identityProvider &&
+          identitySubject == other.identitySubject &&
           billingEmail == other.billingEmail &&
           organizationName == other.organizationName;
 
   @override
-  int get hashCode => Object.hash(id, ssoId, billingEmail, organizationName);
+  int get hashCode =>
+      Object.hash(id, identityProvider, identitySubject, billingEmail, organizationName);
 }
