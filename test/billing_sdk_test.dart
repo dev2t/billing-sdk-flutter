@@ -139,15 +139,16 @@ void main() {
       test('without billingApiBaseUrl throws on sync', () async {
         BillingSdk.resetForTesting();
         expectLater(
-          BillingSdk.syncFromServer(email: 'user@test.com'),
+          BillingSdk.syncFromServer(authorizationToken: 'Bearer x'),
           throwsStateError,
         );
       });
 
-      test('with no email/ssoId returns SyncFailure', () async {
-        final result = await BillingSdk.syncFromServer();
+      test('with empty authorizationToken returns SyncFailure', () async {
+        BillingSdk.configure(billingApiBaseUrl: 'https://billing.example.com/');
+        final result = await BillingSdk.syncFromServer(authorizationToken: '');
         expect(result, isA<SyncFailure>());
-        expect((result as SyncFailure).message, contains('identifier'));
+        expect((result as SyncFailure).message, contains('token'));
       });
     });
   });

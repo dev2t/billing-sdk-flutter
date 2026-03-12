@@ -105,28 +105,12 @@ class BillingSdk {
   /// Returns the current in-memory payload, or null if not initialized or invalid.
   static BillingTokenPayload? getPayload() => _currentPayload;
 
-  /// Syncs from the Billing API by user identifier. On success, updates in-memory state.
-  /// The license endpoint is protected: pass [authorizationToken] (e.g. Bearer/ssoToken) when required.
+  /// Syncs from the Billing API. Requires [authorizationToken] (Bearer or SSO token). No email/ssoId.
+  /// GET /api/billing/license with Authorization header. On success, updates in-memory state.
   /// Returns [SyncResult]; on failure, use the message for an error notification.
-  static Future<SyncResult> syncFromServer({
-    String? email,
-    String? ssoId,
-    String? authorizationToken,
-  }) async {
-    String? emailParam = email;
-    String? ssoIdParam = ssoId;
-
-    if ((emailParam == null || emailParam.isEmpty) &&
-        (ssoIdParam == null || ssoIdParam.isEmpty)) {
-      return const SyncFailure(message: 'Missing user identifier.');
-    }
-
+  static Future<SyncResult> syncFromServer({required String authorizationToken}) async {
     final client = _apiClientOrThrow;
-    final result = await client.fetchSdkToken(
-      email: emailParam,
-      ssoId: ssoIdParam,
-      authorizationToken: authorizationToken,
-    );
+    final result = await client.fetchLicense(authorizationToken: authorizationToken);
 
     switch (result) {
       case SyncSuccess(:final signedToken):

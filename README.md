@@ -7,7 +7,7 @@ Flutter SDK for billing token verification, in-memory entitlements, sync from th
 ## Features
 
 - **Init** – Decode saved signed JWT on app start and keep payload in memory for add-on checks.
-- **Sync** – Sync billing from the server by user id (email or SSO id).
+- **Sync** – Sync billing from the server (GET /api/billing/license) with required authorization token.
 - **Paste + verify** – Verify pasted token and expose payload (or a user-facing error) so the app can persist and show notifications.
 
 ---
@@ -76,12 +76,11 @@ if (payload != null && payload.hasSubscription('sub_premium')) {
 
 ### Sync from server
 
-Call when the user taps “Sync billing” (or similar). Use email or SSO id as required by your Billing API. The license endpoint is protected: pass `authorizationToken` (e.g. Bearer or SSO token) when your backend requires it.
+Call when the user taps “Sync billing”. Only the authorization token is required (Bearer or SSO token). GET /api/billing/license with no query params.
 
 ```dart
 final result = await BillingSdk.syncFromServer(
-  email: userEmail,   // or ssoId: userSsoId
-  authorizationToken: userAuthToken, // optional; required if endpoint is protected
+  authorizationToken: userAuthToken, // required
 );
 switch (result) {
   case SyncSuccess():

@@ -32,7 +32,6 @@ class BillingExamplePage extends StatefulWidget {
 
 class _BillingExamplePageState extends State<BillingExamplePage> {
   final TextEditingController _tokenController = TextEditingController();
-  final TextEditingController _uniqueIdController = TextEditingController();
   final TextEditingController _authTokenController = TextEditingController();
   final TextEditingController _publicKeyPathController =
       TextEditingController();
@@ -147,24 +146,15 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
   }
 
   Future<void> _onSync() async {
-    final input = _uniqueIdController.text.trim();
-    debugPrint(
-      '[BillingExample] Sync: input=${input.isEmpty ? "(empty)" : input}',
-    );
-    if (input.isEmpty) {
-      _showError('Enter email or SSO id.');
-      debugPrint('[BillingExample] Sync: skipped (empty)');
+    final authToken = _authTokenController.text.trim();
+    debugPrint('[BillingExample] Sync: token length=${authToken.length}');
+    if (authToken.isEmpty) {
+      _showError('Authorization token is required for sync.');
       return;
     }
-    final authToken = _authTokenController.text.trim();
     setState(() => _syncing = true);
-    debugPrint('[BillingExample] Sync: calling API…');
-    // Example app: single field → pass as email or ssoId (SDK does not define this convention)
-    final result = await BillingSdk.syncFromServer(
-      email: input.contains('@') ? input : null,
-      ssoId: input.contains('@') ? null : input,
-      authorizationToken: authToken.isEmpty ? null : authToken,
-    );
+    debugPrint('[BillingExample] Sync: calling GET /api/billing/license…');
+    final result = await BillingSdk.syncFromServer(authorizationToken: authToken);
 
     setState(() => _syncing = false);
     switch (result) {
@@ -260,23 +250,14 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
             ),
             const SizedBox(height: 4),
             Text(
-              'License endpoint is protected. Add authorization token (Bearer/ssoToken) if required.',
+              'GET /api/billing/license. Authorization token is required (Bearer or SSO token).',
               style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _uniqueIdController,
-              decoration: const InputDecoration(
-                labelText: 'Email or SSO id',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.emailAddress,
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _authTokenController,
               decoration: const InputDecoration(
-                labelText: 'Authorization token (optional)',
+                labelText: 'Authorization token (required)',
                 hintText: 'Bearer token or SSO token',
                 border: OutlineInputBorder(),
               ),
@@ -302,7 +283,6 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
   @override
   void dispose() {
     _tokenController.dispose();
-    _uniqueIdController.dispose();
     _authTokenController.dispose();
     _publicKeyPathController.dispose();
     super.dispose();

@@ -22,56 +22,30 @@ class BillingApiClient {
 
   final String _baseUrl;
 
-  /// GET /api/billing/license?email=... or ?ssoId=...
-  /// Protected endpoint: pass [authorizationToken] (e.g. Bearer/ssoToken) to authenticate.
-  /// Response: map with key `signedToken` (JWT string). Returns [SyncSuccess] or [SyncFailure].
-  Future<SyncResult> fetchSdkToken({
-    String? email,
-    String? ssoId,
-    String? authorizationToken,
-  }) async {
-    if ((email == null || email.isEmpty) && (ssoId == null || ssoId.isEmpty)) {
-      return const SyncFailure(message: 'Missing user identifier.');
+  /// GET /api/billing/license with Authorization header.
+  /// [authorizationToken] is required (Bearer or SSO token). No query params.
+  /// Response: map with key `signedToken` (JWT string), possibly under `data`. Returns [SyncSuccess] or [SyncFailure].
+  Future<SyncResult> fetchLicense({required String authorizationToken}) async {
+    final raw = authorizationToken.trim();
+    if (raw.isEmpty) {
+      return const SyncFailure(message: 'Authorization token is required.');
     }
-
-    if (email != null &&
-        email.isNotEmpty &&
-        ssoId != null &&
-        ssoId.isNotEmpty) {
-      return const SyncFailure(
-        message: 'Provide either email or ssoId, not both.',
-      );
-    }
-
-    final query = email != null && email.isNotEmpty
-        ? 'email=${Uri.encodeComponent(email)}'
-        : 'ssoId=${Uri.encodeComponent(ssoId!)}';
-
-    final uri = Uri.parse('${_baseUrl}api/billing/license?$query');
-
-    final headers = <String, String>{};
-    if (authorizationToken != null && authorizationToken.trim().isNotEmpty) {
-      final token = authorizationToken.trim();
-      headers['Authorization'] = token.toLowerCase().startsWith('bearer ')
-          ? token
-          : 'Bearer $token';
-    }
+    final token = raw.toLowerCase().startsWith('bearer ') ? raw : 'Bearer $raw';
+    final uri = Uri.parse('${_baseUrl}api/billing/license');
+    final headers = <String, String>{'Authorization': token};
 
     try {
-      final response = await http.get(
-        uri,
-        headers: headers.isEmpty ? null : headers,
-      );
+      final response = await http.get(uri, headers: headers);
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>?;
 
         final rawData = body?['data'];
         final data = rawData is Map<String, dynamic> ? rawData : body;
-        final token = data?['signedToken'];
+        final signed = data?['signedToken'] ?? data?['signed_token'] ?? data?['token'];
 
-        if (token is String && token.isNotEmpty) {
-          return SyncSuccess(signedToken: token);
+        if (signed is String && signed.isNotEmpty) {
+          return SyncSuccess(signedToken: signed);
         }
 
         return const SyncFailure(
@@ -80,7 +54,7 @@ class BillingApiClient {
       }
 
       if (response.statusCode == 400) {
-        return const SyncFailure(message: 'Missing user identifier.');
+        return const SyncFailure(message: 'Bad request. Check your token.');
       }
 
       if (response.statusCode == 401) {
