@@ -1,18 +1,14 @@
-/// Default public key PEM for verifying Billing API JWTs (RS256).
+/// Default public key PEM for verifying Billing API JWTs (ES256).
 ///
 /// Replace with the actual public key from your Billing API (e.g. from
 /// GET /api/billing/public-key) or set via [BillingSdk.configure].
 ///
 /// For production, the host app must call [BillingSdk.configure] with
 /// [publicKeyPem] from the Billing API.
+/// Key below is for unit tests only. Example app uses [keys/billing_public.pem] (your backend key).
 const String defaultPublicKeyPem = '''
 -----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1LfVLPHCozMxH2Mo
-4lgOEePzNm0tRgeLezV6ffAt0gunVTLw7onLRnrq0/IzW7yWR7QkrmBL7jTKEn5u
-+qKhbwKfBstIs+bMY2Zkp18gnTxKLxoS2tFczGkPLPgizskuemMghRniWaoLcyeh
-kd3qqGElvW/VDL5AaWTg0nLVkjRo9z+40RQzuVaE8AkAFmxZzow3x+VJYKdjykkJ0
-iT9wCS0DRTXu269V264Vf/3jvredZiKRkgwlL9xNAwxXFg0x/XFw005UWVRIkdgc
-KWTjpBP2dPwVZ4WWC+9aGVd+Gyn1o0CLelf4rEjGoXbAAEgAqeGUxrcIlbjXfbc
-mwIDAQAB
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEeEVCorHYleEEXenCf2NUQK08nr66
+xw3CP4f/pW1XBukGklwC8ghepXE6CfPoWyGGG8c5XvM7EpQyZq5VaWeanQ==
 -----END PUBLIC KEY-----
 ''';

@@ -39,6 +39,8 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
   String? _savedToken;
   static const _defaultBillingBaseUrl = 'http://localhost:3000';
 
+  /// Public key PEM asset. Must match the key that signed the JWT from your backend.
+  /// After changing this file, do a full restart (not hot reload) so the new key is loaded.
   static const _publicKeyAsset = 'keys/billing_public.pem';
 
   @override
@@ -57,9 +59,19 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
         billingApiBaseUrl: _defaultBillingBaseUrl,
         publicKeyAsset: _publicKeyAsset,
       );
+
+      final fp = BillingSdk.loadedKeyFingerprint;
+
       debugPrint(
-        '[BillingExample] Init: public key loaded from asset (embedded in build).',
+        '[BillingExample] Init: public key loaded from asset. '
+        'Key fingerprint: ${fp ?? "?"} — compare with last 24 chars of base64 in keys/billing_public.pem',
       );
+
+      if (fp == null) {
+        debugPrint(
+          '[BillingExample] Init: no key fingerprint (using default?). If you use asset, fingerprint should be set.',
+        );
+      }
     } on FormatException catch (e) {
       debugPrint('[BillingExample] Init: asset invalid — ${e.message}');
       BillingSdk.configure(billingApiBaseUrl: _defaultBillingBaseUrl);
@@ -138,8 +150,14 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
           'Token verified. Paying party: ${payload.payingParty.id}, subscriptions: ${payload.subscriptionIds.length}',
         );
       case VerifyFailure(:final error):
+        final alg = BillingSdk.getJwtAlg(pasted);
         debugPrint(
           '[BillingExample] Paste+Verify: FAILED — reason=${error.reason}, message=${error.message}',
+        );
+        debugPrint(
+          '[BillingExample] Token alg=$alg (SDK expects ES256). '
+          'Key fingerprint in use: ${BillingSdk.loadedKeyFingerprint ?? "?"}. '
+          'If alg is RS256 the backend must sign with ES256; if fingerprint does not match keys/billing_public.pem, do a full restart.',
         );
         _showError(error.message);
     }
@@ -154,7 +172,9 @@ class _BillingExamplePageState extends State<BillingExamplePage> {
     }
     setState(() => _syncing = true);
     debugPrint('[BillingExample] Sync: calling GET /api/billing/license…');
-    final result = await BillingSdk.syncFromServer(authorizationToken: authToken);
+    final result = await BillingSdk.syncFromServer(
+      authorizationToken: authToken,
+    );
 
     setState(() => _syncing = false);
     switch (result) {

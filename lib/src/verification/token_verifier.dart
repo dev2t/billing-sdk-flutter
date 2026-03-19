@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 
+import '../logging/sdk_logger.dart';
 import '../models/billing_token_error.dart';
 import '../models/billing_token_payload.dart';
 
@@ -7,9 +10,9 @@ import '../models/billing_token_payload.dart';
 /// a [BillingTokenError] with a user-facing message.
 class TokenVerifier {
   TokenVerifier({required String publicKeyPem})
-    : _publicKey = RSAPublicKey(publicKeyPem);
+    : _publicKey = ECPublicKey(publicKeyPem);
 
-  final RSAPublicKey _publicKey;
+  final ECPublicKey _publicKey;
 
   /// Verifies the token and returns either [VerifySuccess] with payload or
   /// [VerifyFailure] with a user-facing error for the app to show.
@@ -29,6 +32,10 @@ class TokenVerifier {
       );
 
       if (jwt == null) {
+        final algHint = _jwtAlgFromToken(trimmed);
+        if (algHint != null) {
+          BillingSdkLogger.warning('Token signed with alg=$algHint; SDK expects ES256 (EC key). Key must match signer.');
+        }
         return _failure(BillingTokenErrorReason.invalidSignature);
       }
 
@@ -58,11 +65,37 @@ class TokenVerifier {
     }
   }
 
+  /// Decodes JWT header and returns "alg" if present (e.g. "ES256", "RS256").
+  static String? _jwtAlgFromToken(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length < 2) return null;
+      final padded = parts[0].replaceAll('-', '+').replaceAll('_', '/');
+      switch (padded.length % 4) {
+        case 2: final b = utf8.decode(base64Url.decode('$padded==')); return _algFromHeaderJson(b);
+        case 3: final b = utf8.decode(base64Url.decode('$padded=')); return _algFromHeaderJson(b);
+        default: final b = utf8.decode(base64Url.decode(padded)); return _algFromHeaderJson(b);
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String? _algFromHeaderJson(String json) {
+    try {
+      final map = jsonDecode(json) as Map<String, dynamic>?;
+      return map?['alg'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   VerifyFailure _failure(BillingTokenErrorReason reason, {String? detail}) {
     var message = _userMessage(reason);
     if (reason == BillingTokenErrorReason.missingClaims && detail != null && detail.isNotEmpty) {
       message = '$message $detail';
     }
+    BillingSdkLogger.error('Token verification failed', 'reason=$reason — $message');
     return VerifyFailure(
       BillingTokenError(message: message, reason: reason),
     );

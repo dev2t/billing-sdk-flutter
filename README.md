@@ -111,7 +111,7 @@ switch (result) {
 | Option | Description |
 |--------|-------------|
 | `billingApiBaseUrl` | Base URL of the Billing API (required for `syncFromServer`). |
-| `publicKeyPem` | PEM string to verify JWTs. If omitted, the SDK uses an embedded default; **set from your Billing API in production.** |
+| `publicKeyPem` | EC public key PEM (ES256) to verify JWTs. If omitted, the SDK uses an embedded default; **set from your Billing API in production.** |
 | `publicKeyPath` | Path to a `.pem` file on disk. The file is read and validated (must contain `-----BEGIN PUBLIC KEY-----` and `-----END PUBLIC KEY-----`). Not supported on web; use `publicKeyPem` or asset there. |
 | **Asset (recommended)** | Call `BillingSdk.configureWithAsset(publicKeyAsset: 'keys/billing_public.pem')` (or `loadPublicKeyFromAsset` then `configure`). Use a path that does not start with `assets/` (e.g. `keys/`) so web works. Add the `.pem` to `pubspec.yaml` under `flutter: assets:`. Same PEM validation applies. |
 
